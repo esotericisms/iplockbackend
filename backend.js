@@ -6,22 +6,31 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
 const session = require('express-session');
 const cors = require('cors');
-const https = require('https'); // we'll use this to send to Discord
+const https = require('https');
 
 const app = express();
 
-// let express trust proxy so we can get real IP if behind something
+// so we can see real IPs behind proxies
 app.set('trust proxy', true);
 
-// CORS so your React (localhost:3000) can talk to this
+/*
+  CORS: keep it simple.
+  - allow localhost:3000 (your React dev)
+  - you can add Netlify later
+  - allow credentials (we use sessions)
+*/
 app.use(
   cors({
-    origin: ['http://localhost:3000'],
+    origin: [
+      'http://localhost:3000',
+      // add your netlify url here later, e.g.
+      // 'https://your-site.netlify.app'
+    ],
     credentials: true,
   })
 );
 
-// parse json
+// parse JSON
 app.use(express.json());
 
 // sessions
@@ -33,29 +42,28 @@ app.use(
   })
 );
 
-// connect to mongo
+// connect to MongoDB
 mongoose
   .connect(process.env.MONGO_URL)
   .then(() => console.log('Mongo connected'))
   .catch((err) => console.error('Mongo error', err));
 
-// user schema
+// schema
 const userSchema = new mongoose.Schema({
   username: { type: String, unique: true },
   passwordHash: String,
   ips: [String],
 });
-
 const User = mongoose.model('User', userSchema);
 
-// get IP helper
+// get client IP
 function getClientIp(req) {
   const fwd = req.headers['x-forwarded-for'];
   if (fwd) return fwd.split(',')[0].trim();
   return req.ip;
 }
 
-// discord logger using https (no fetch needed)
+// discord logger (uses https so we don't need fetch)
 function logToDiscord(content) {
   const url = process.env.DISCORD_WEBHOOK_URL;
   if (!url) {
@@ -77,7 +85,7 @@ function logToDiscord(content) {
   };
 
   const req = https.request(options, (res) => {
-    // optional: console.log('discord status', res.statusCode);
+    // console.log('discord status', res.statusCode);
   });
 
   req.on('error', (err) => {
@@ -88,7 +96,7 @@ function logToDiscord(content) {
   req.end();
 }
 
-// ADMIN: create user
+// ADMIN create-user
 app.post('/admin/create-user', async (req, res) => {
   const adminKey = req.headers['x-admin-key'];
   if (adminKey !== process.env.ADMIN_KEY) {
@@ -121,7 +129,7 @@ app.post('/admin/create-user', async (req, res) => {
   }
 });
 
-// LOGIN: 2 IP max + discord logging
+// LOGIN with 2-IP lock + discord log
 app.post('/login', async (req, res) => {
   const { username, password } = req.body;
   const ip = getClientIp(req);
@@ -151,7 +159,7 @@ app.post('/login', async (req, res) => {
   const hasIp = user.ips.includes(ip);
 
   if (!hasIp) {
-    // limit to 2 IPs
+    // max 2 ips
     if (user.ips.length >= 2) {
       logToDiscord(
         `⛔ Login blocked (IP limit reached)
@@ -180,15 +188,13 @@ app.post('/login', async (req, res) => {
   res.json({ ok: true });
 });
 
-// session check for React
+// session check
 app.get('/me', (req, res) => {
-  if (!req.session.userId) {
-    return res.json({ loggedIn: false });
-  }
-  return res.json({ loggedIn: true });
+  if (!req.session.userId) return res.json({ loggedIn: false });
+  res.json({ loggedIn: true });
 });
 
-// test route to see if discord works
+// quick discord test
 app.get('/test-discord', (req, res) => {
   logToDiscord('🧪 test message from /test-discord');
   res.json({ ok: true });
