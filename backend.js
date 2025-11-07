@@ -23,12 +23,12 @@ app.use(
   cors({
     origin: [
       'http://localhost:3000',
-      // add your netlify url here later, e.g.
-      // 'https://your-site.netlify.app'
+      'https://vocal-bunny-613a1e.netlify.app',   // <-- your netlify
     ],
     credentials: true,
   })
 );
+
 
 // parse JSON
 app.use(express.json());
