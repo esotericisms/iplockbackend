@@ -160,7 +160,7 @@ app.post('/login', async (req, res) => {
 
   if (!hasIp) {
     // max 2 ips
-    if (user.ips.length >= 2) {
+    if (user.ips.length >= 3) {
       logToDiscord(
         `⛔ Login blocked (IP limit reached)
 **username:** ${username}
@@ -204,3 +204,4 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log('server running on', PORT);
 });
+
